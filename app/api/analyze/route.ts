@@ -1,18 +1,8 @@
 import { NextResponse } from "next/server";
-
-type Action = "summary" | "theses" | "telegram";
-
-const PLACEHOLDERS: Record<Action, (url: string) => string> = {
-  summary: (url) =>
-    `[Заглушка] Кратко о статье по адресу:\n${url}\n\nЗдесь будет ответ AI на запрос «О чем статья?».`,
-  theses: (url) =>
-    `[Заглушка] Тезисы по статье:\n${url}\n\n• Тезис 1\n• Тезис 2\n• Тезис 3\n\nПодключите парсинг и AI для реальной генерации.`,
-  telegram: (url) =>
-    `[Заглушка] Пост для Telegram\n\n📰 Новая статья: ${url}\n\nКраткий анонс и ссылка появятся после подключения AI.`,
-};
+import { fetchAndParseArticle } from "@/lib/parseArticle";
 
 export async function POST(request: Request) {
-  let body: { url?: string; action?: Action };
+  let body: { url?: string };
 
   try {
     body = await request.json();
@@ -20,7 +10,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Некорректный JSON" }, { status: 400 });
   }
 
-  const { url, action } = body;
+  const { url } = body;
 
   if (!url || typeof url !== "string") {
     return NextResponse.json({ error: "Не указан URL" }, { status: 400 });
@@ -32,11 +22,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Некорректный URL" }, { status: 400 });
   }
 
-  if (!action || !(action in PLACEHOLDERS)) {
-    return NextResponse.json({ error: "Неизвестное действие" }, { status: 400 });
+  try {
+    const article = await fetchAndParseArticle(url);
+
+    if (!article.title && !article.content) {
+      return NextResponse.json(
+        { error: "Не удалось извлечь заголовок и контент статьи" },
+        { status: 422 },
+      );
+    }
+
+    return NextResponse.json(article);
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Ошибка при парсинге статьи";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  await new Promise((r) => setTimeout(r, 600));
-
-  return NextResponse.json({ text: PLACEHOLDERS[action](url) });
 }

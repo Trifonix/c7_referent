@@ -4,6 +4,12 @@ import { useState } from "react";
 
 type Action = "summary" | "theses" | "telegram";
 
+type ParsedArticle = {
+  date: string | null;
+  title: string | null;
+  content: string | null;
+};
+
 const ACTIONS: { id: Action; label: string }[] = [
   { id: "summary", label: "О чем статья?" },
   { id: "theses", label: "Тезисы" },
@@ -45,13 +51,19 @@ export default function ArticleAnalyzer() {
         body: JSON.stringify({ url: trimmed, action }),
       });
 
-      const data = (await response.json()) as { text?: string; error?: string };
+      const data = (await response.json()) as ParsedArticle & { error?: string };
 
       if (!response.ok) {
         throw new Error(data.error ?? "Не удалось выполнить запрос");
       }
 
-      setResult(data.text ?? "");
+      const article: ParsedArticle = {
+        date: data.date ?? null,
+        title: data.title ?? null,
+        content: data.content ?? null,
+      };
+
+      setResult(JSON.stringify(article, null, 2));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Произошла ошибка");
     } finally {
@@ -118,7 +130,7 @@ export default function ArticleAnalyzer() {
           <div className="mt-4 flex items-center gap-3 text-slate-600">
             <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-sky-600 border-t-transparent" />
             <span className="text-sm">
-              Генерация{activeLabel ? `: «${activeLabel}»` : ""}…
+              Парсинг{activeLabel ? ` («${activeLabel}»)` : ""}…
             </span>
           </div>
         )}
@@ -130,9 +142,9 @@ export default function ArticleAnalyzer() {
         )}
 
         {!loading && result !== null && (
-          <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
+          <pre className="mt-4 overflow-x-auto rounded-lg bg-white p-4 text-xs leading-relaxed text-slate-800 sm:text-sm">
             {result}
-          </div>
+          </pre>
         )}
       </section>
     </div>
