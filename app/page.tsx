@@ -1,7 +1,9 @@
+import ArticleAnalyzer from "@/components/ArticleAnalyzer";
+
 export default function Home() {
   return (
-    <main>
-      <h1>Я изучаю Next.js</h1>
+    <main className="px-4 py-12 sm:py-16">
+      <ArticleAnalyzer />
     </main>
   );
 }
