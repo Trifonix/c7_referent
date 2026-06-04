@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { fetchAndParseArticle } from "@/lib/parseArticle";
+import { translateArticle } from "@/lib/openrouter";
+
+type Action = "summary" | "theses" | "telegram" | "translate";
 
 export async function POST(request: Request) {
-  let body: { url?: string };
+  let body: { url?: string; action?: Action };
 
   try {
     body = await request.json();
@@ -10,7 +13,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Некорректный JSON" }, { status: 400 });
   }
 
-  const { url } = body;
+  const { url, action = "summary" } = body;
 
   if (!url || typeof url !== "string") {
     return NextResponse.json({ error: "Не указан URL" }, { status: 400 });
@@ -32,10 +35,15 @@ export async function POST(request: Request) {
       );
     }
 
+    if (action === "translate") {
+      const text = await translateArticle(article);
+      return NextResponse.json({ text });
+    }
+
     return NextResponse.json(article);
   } catch (err) {
     const message =
-      err instanceof Error ? err.message : "Ошибка при парсинге статьи";
+      err instanceof Error ? err.message : "Ошибка при обработке статьи";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
