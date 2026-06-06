@@ -1,20 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Action = "summary" | "theses" | "telegram" | "translate";
 
-const LOADING_LABELS: Record<Action, string> = {
-  summary: "Генерация краткого содержания",
-  theses: "Выделение тезисов",
-  telegram: "Создание поста",
-  translate: "Перевод статьи через AI",
+const PROCESS_STEPS: Record<Action, string[]> = {
+  summary: [
+    "Загружаю статью…",
+    "Извлекаю заголовок и текст…",
+    "Генерирую краткое содержание…",
+  ],
+  theses: [
+    "Загружаю статью…",
+    "Извлекаю заголовок и текст…",
+    "Выделяю ключевые тезисы…",
+  ],
+  telegram: [
+    "Загружаю статью…",
+    "Извлекаю заголовок и текст…",
+    "Создаю пост для Telegram…",
+  ],
+  translate: [
+    "Загружаю статью…",
+    "Извлекаю заголовок и текст…",
+    "Перевожу статью на русский…",
+  ],
 };
 
 const ACTIONS: {
   id: Action;
   label: string;
   description: string;
+  title: string;
   btn: string;
   ring: string;
   stagger: string;
@@ -23,6 +40,7 @@ const ACTIONS: {
     id: "summary",
     label: "О чем статья?",
     description: "Краткое содержание",
+    title: "AI составит краткое содержание статьи на русском языке",
     btn: "bg-violet-600 hover:bg-violet-500 hover:shadow-violet-500/40 focus-visible:ring-violet-400",
     ring: "ring-violet-400/60",
     stagger: "stagger-1",
@@ -31,6 +49,7 @@ const ACTIONS: {
     id: "theses",
     label: "Тезисы",
     description: "Ключевые пункты",
+    title: "AI выделит ключевые тезисы статьи в виде списка на русском",
     btn: "bg-emerald-600 hover:bg-emerald-500 hover:shadow-emerald-500/40 focus-visible:ring-emerald-400",
     ring: "ring-emerald-400/60",
     stagger: "stagger-2",
@@ -39,6 +58,7 @@ const ACTIONS: {
     id: "telegram",
     label: "Пост для Telegram",
     description: "Готовый пост",
+    title: "AI подготовит готовый пост для Telegram-канала со ссылкой на источник",
     btn: "bg-cyan-600 hover:bg-cyan-500 hover:shadow-cyan-500/40 focus-visible:ring-cyan-400",
     ring: "ring-cyan-400/60",
     stagger: "stagger-3",
@@ -47,6 +67,7 @@ const ACTIONS: {
     id: "translate",
     label: "Перевод",
     description: "На русский язык",
+    title: "AI переведёт заголовок и текст статьи на русский язык",
     btn: "bg-amber-500 hover:bg-amber-400 text-slate-950 hover:shadow-amber-400/40 focus-visible:ring-amber-300",
     ring: "ring-amber-300/70",
     stagger: "stagger-4",
@@ -59,6 +80,26 @@ export default function ArticleAnalyzer() {
   const [loading, setLoading] = useState(false);
   const [activeAction, setActiveAction] = useState<Action | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [processStatus, setProcessStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading || !activeAction) {
+      setProcessStatus(null);
+      return;
+    }
+
+    const steps = PROCESS_STEPS[activeAction];
+    let stepIndex = 0;
+    setProcessStatus(steps[0]);
+
+    const interval = setInterval(() => {
+      stepIndex = Math.min(stepIndex + 1, steps.length - 1);
+      setProcessStatus(steps[stepIndex]);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [loading, activeAction]);
+
   async function handleAction(action: Action) {
     const trimmed = url.trim();
     if (!trimmed) {
@@ -98,11 +139,11 @@ export default function ArticleAnalyzer() {
       setError(err instanceof Error ? err.message : "Произошла ошибка");
     } finally {
       setLoading(false);
+      setActiveAction(null);
     }
   }
 
   const activeMeta = ACTIONS.find((a) => a.id === activeAction);
-  const loadingLabel = activeAction ? LOADING_LABELS[activeAction] : "Обработка";
 
   return (
     <div className="relative mx-auto w-full max-w-3xl">
@@ -125,12 +166,9 @@ export default function ArticleAnalyzer() {
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white shadow-lg shadow-indigo-600/30">
             1
           </span>
-          <div>
-            <label htmlFor="article-url" className="block text-sm font-semibold text-slate-900">
-              URL статьи
-            </label>
-            <p className="text-xs text-slate-500">Вставьте ссылку на англоязычную публикацию</p>
-          </div>
+          <label htmlFor="article-url" className="block text-sm font-semibold text-slate-900">
+            URL статьи
+          </label>
         </div>
 
         <input
@@ -138,10 +176,13 @@ export default function ArticleAnalyzer() {
           type="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://example.com/article"
+          placeholder="Введите URL статьи, например: https://example.com/article"
           disabled={loading}
           className="w-full rounded-xl border-2 border-indigo-200 bg-white px-4 py-3.5 text-slate-900 shadow-inner shadow-indigo-100/50 placeholder:text-slate-400 transition focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60"
         />
+        <p className="mt-2 text-xs text-slate-500">
+          Укажите ссылку на англоязычную статью
+        </p>
 
         {error && (
           <p
@@ -157,13 +198,14 @@ export default function ArticleAnalyzer() {
             Выберите действие
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
-            {ACTIONS.map(({ id, label, description, btn, ring, stagger }) => {
+            {ACTIONS.map(({ id, label, description, title, btn, ring, stagger }) => {
               const isActive = loading && activeAction === id;
 
               return (
                 <button
                   key={id}
                   type="button"
+                  title={title}
                   onClick={() => handleAction(id)}
                   disabled={loading}
                   className={`animate-fade-in-up ${stagger} group relative overflow-hidden rounded-xl px-4 py-3.5 text-left font-medium text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 ${btn} ${isActive ? `ring-2 ${ring}` : ""}`}
@@ -184,6 +226,25 @@ export default function ArticleAnalyzer() {
         </div>
       </div>
 
+      {/* Блок текущего процесса */}
+      {loading && processStatus && (
+        <div
+          className="animate-fade-in mt-4 flex items-center gap-3 rounded-xl border border-violet-500/30 bg-violet-950/40 px-4 py-3 backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-violet-400/30 border-t-violet-300" />
+          <div>
+            <p className="text-sm font-medium text-violet-200">{processStatus}</p>
+            {activeMeta && (
+              <p className="text-xs text-slate-500">
+                {activeMeta.label} — это может занять до минуты
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Блок результата */}
       <section
         className="animate-fade-in-up stagger-3 mt-6 overflow-hidden rounded-2xl border border-teal-500/25 bg-gradient-to-br from-slate-900 via-slate-900 to-teal-950 p-6 shadow-2xl shadow-black/50 sm:p-7"
@@ -199,28 +260,6 @@ export default function ArticleAnalyzer() {
             <p className="text-xs text-slate-500">Ответ появится здесь после обработки</p>
           </div>
         </div>
-
-        {loading && (
-          <div className="animate-fade-in mt-2 rounded-xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-            <div className="flex items-center gap-4">
-              <div className="relative h-10 w-10 shrink-0">
-                <span className="absolute inset-0 animate-spin rounded-full border-2 border-teal-400/30 border-t-teal-400" />
-                <span className="absolute inset-2 animate-spin rounded-full border-2 border-violet-400/20 border-b-violet-400 [animation-direction:reverse] [animation-duration:1.5s]" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-slate-200">{loadingLabel}</p>
-                <p className="text-xs text-slate-500">
-                  {activeMeta?.label ?? "Обработка"} — это может занять до минуты
-                </p>
-                <div className="mt-2 flex gap-1.5">
-                  <span className="loading-dot h-1.5 w-1.5 rounded-full bg-teal-400" />
-                  <span className="loading-dot h-1.5 w-1.5 rounded-full bg-teal-400" />
-                  <span className="loading-dot h-1.5 w-1.5 rounded-full bg-teal-400" />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {!loading && result === null && !error && (
           <div className="mt-2 rounded-xl border border-dashed border-slate-700 bg-slate-800/40 px-5 py-10 text-center">
