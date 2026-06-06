@@ -1,8 +1,31 @@
 import { NextResponse } from "next/server";
 import { fetchAndParseArticle } from "@/lib/parseArticle";
-import { translateArticle } from "@/lib/openrouter";
+import {
+  extractTheses,
+  generateTelegramPost,
+  summarizeArticle,
+  translateArticle,
+} from "@/lib/openrouter";
 
 type Action = "summary" | "theses" | "telegram" | "translate";
+
+const AI_ACTIONS: Action[] = ["summary", "theses", "telegram", "translate"];
+
+// Перевод и генерация могут занимать до ~1 мин (очередь бесплатной модели).
+export const maxDuration = 300;
+
+async function runAiAction(action: Action, article: Awaited<ReturnType<typeof fetchAndParseArticle>>, url: string) {
+  switch (action) {
+    case "summary":
+      return summarizeArticle(article);
+    case "theses":
+      return extractTheses(article);
+    case "telegram":
+      return generateTelegramPost(article, url);
+    case "translate":
+      return translateArticle(article);
+  }
+}
 
 export async function POST(request: Request) {
   let body: { url?: string; action?: Action };
@@ -17,6 +40,10 @@ export async function POST(request: Request) {
 
   if (!url || typeof url !== "string") {
     return NextResponse.json({ error: "Не указан URL" }, { status: 400 });
+  }
+
+  if (!AI_ACTIONS.includes(action)) {
+    return NextResponse.json({ error: "Неизвестное действие" }, { status: 400 });
   }
 
   try {
@@ -35,12 +62,8 @@ export async function POST(request: Request) {
       );
     }
 
-    if (action === "translate") {
-      const text = await translateArticle(article);
-      return NextResponse.json({ text });
-    }
-
-    return NextResponse.json(article);
+    const text = await runAiAction(action, article, url);
+    return NextResponse.json({ text });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Ошибка при обработке статьи";

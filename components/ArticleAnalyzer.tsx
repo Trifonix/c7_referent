@@ -4,10 +4,11 @@ import { useState } from "react";
 
 type Action = "summary" | "theses" | "telegram" | "translate";
 
-type ParsedArticle = {
-  date: string | null;
-  title: string | null;
-  content: string | null;
+const LOADING_LABELS: Record<Action, string> = {
+  summary: "Генерация краткого содержания",
+  theses: "Выделение тезисов",
+  telegram: "Создание поста",
+  translate: "Перевод статьи через AI",
 };
 
 const ACTIONS: {
@@ -58,8 +59,6 @@ export default function ArticleAnalyzer() {
   const [loading, setLoading] = useState(false);
   const [activeAction, setActiveAction] = useState<Action | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isPlainText, setIsPlainText] = useState(false);
-
   async function handleAction(action: Action) {
     const trimmed = url.trim();
     if (!trimmed) {
@@ -80,7 +79,6 @@ export default function ArticleAnalyzer() {
     setLoading(true);
     setActiveAction(action);
     setResult(null);
-    setIsPlainText(action === "translate");
 
     try {
       const response = await fetch("/api/analyze", {
@@ -89,25 +87,13 @@ export default function ArticleAnalyzer() {
         body: JSON.stringify({ url: trimmed, action }),
       });
 
-      const data = (await response.json()) as ParsedArticle & {
-        text?: string;
-        error?: string;
-      };
+      const data = (await response.json()) as { text?: string; error?: string };
 
       if (!response.ok) {
         throw new Error(data.error ?? "Не удалось выполнить запрос");
       }
 
-      if (action === "translate") {
-        setResult(data.text ?? "");
-      } else {
-        const article: ParsedArticle = {
-          date: data.date ?? null,
-          title: data.title ?? null,
-          content: data.content ?? null,
-        };
-        setResult(JSON.stringify(article, null, 2));
-      }
+      setResult(data.text ?? "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Произошла ошибка");
     } finally {
@@ -116,10 +102,7 @@ export default function ArticleAnalyzer() {
   }
 
   const activeMeta = ACTIONS.find((a) => a.id === activeAction);
-  const loadingLabel =
-    activeAction === "translate"
-      ? "Перевод статьи через AI"
-      : "Парсинг и обработка";
+  const loadingLabel = activeAction ? LOADING_LABELS[activeAction] : "Обработка";
 
   return (
     <div className="relative mx-auto w-full max-w-3xl">
@@ -245,21 +228,15 @@ export default function ArticleAnalyzer() {
               Введите URL и нажмите одну из кнопок
             </p>
             <p className="mt-1 text-xs text-slate-600">
-              JSON-парсинг или перевод на русский
+              Краткое содержание, тезисы, пост или перевод
             </p>
           </div>
         )}
 
-        {!loading && result !== null && isPlainText && (
+        {!loading && result !== null && (
           <div className="animate-fade-in mt-2 max-h-[32rem] overflow-y-auto rounded-xl border border-teal-500/20 bg-slate-950/60 p-5 text-sm leading-relaxed text-slate-200 shadow-inner">
             {result}
           </div>
-        )}
-
-        {!loading && result !== null && !isPlainText && (
-          <pre className="animate-fade-in mt-2 max-h-[32rem] overflow-auto rounded-xl border border-violet-500/20 bg-slate-950/60 p-5 text-xs leading-relaxed text-emerald-300/90 sm:text-sm">
-            {result}
-          </pre>
         )}
       </section>
     </div>
