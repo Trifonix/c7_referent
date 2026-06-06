@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
+import { AppError } from "@/lib/errors";
 
 export type ParsedArticle = {
   date: string | null;
@@ -122,18 +123,24 @@ function extractContent($: CheerioAPI): string | null {
 }
 
 export async function fetchAndParseArticle(url: string): Promise<ParsedArticle> {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept: "text/html,application/xhtml+xml",
-      "Accept-Language": "en-US,en;q=0.9",
-    },
-    signal: AbortSignal.timeout(20000),
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      signal: AbortSignal.timeout(20000),
+    });
+  } catch {
+    throw new AppError("ARTICLE_FETCH_FAILED");
+  }
 
   if (!response.ok) {
-    throw new Error(`Не удалось загрузить страницу: HTTP ${response.status}`);
+    throw new AppError("ARTICLE_FETCH_FAILED");
   }
 
   const html = await response.text();

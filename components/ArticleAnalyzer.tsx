@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ErrorAlert } from "@/components/ErrorAlert";
+import { type ErrorCode, isErrorCode } from "@/lib/errors";
 
 type Action = "summary" | "theses" | "telegram" | "translate";
 
@@ -79,7 +81,7 @@ export default function ArticleAnalyzer() {
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeAction, setActiveAction] = useState<Action | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorCode | null>(null);
   const [processStatus, setProcessStatus] = useState<string | null>(null);
 
   useEffect(() => {
@@ -103,7 +105,7 @@ export default function ArticleAnalyzer() {
   async function handleAction(action: Action) {
     const trimmed = url.trim();
     if (!trimmed) {
-      setError("Введите URL англоязычной статьи");
+      setError("URL_REQUIRED");
       setResult(null);
       return;
     }
@@ -111,7 +113,7 @@ export default function ArticleAnalyzer() {
     try {
       new URL(trimmed);
     } catch {
-      setError("Укажите корректный URL (например, https://example.com/article)");
+      setError("INVALID_URL");
       setResult(null);
       return;
     }
@@ -128,15 +130,16 @@ export default function ArticleAnalyzer() {
         body: JSON.stringify({ url: trimmed, action }),
       });
 
-      const data = (await response.json()) as { text?: string; error?: string };
+      const data = (await response.json()) as { text?: string; code?: string };
 
       if (!response.ok) {
-        throw new Error(data.error ?? "Не удалось выполнить запрос");
+        setError(isErrorCode(data.code) ? data.code : "UNKNOWN");
+        return;
       }
 
       setResult(data.text ?? "");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Произошла ошибка");
+    } catch {
+      setError("NETWORK_ERROR");
     } finally {
       setLoading(false);
       setActiveAction(null);
@@ -184,14 +187,7 @@ export default function ArticleAnalyzer() {
           Укажите ссылку на англоязычную статью
         </p>
 
-        {error && (
-          <p
-            className="animate-fade-in mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-            role="alert"
-          >
-            {error}
-          </p>
-        )}
+        {error && <ErrorAlert code={error} className="mt-3" />}
 
         <div className="mt-6">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">

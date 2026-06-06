@@ -1,3 +1,5 @@
+import { AppError } from "@/lib/errors";
+
 function normalizeEnvValue(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
@@ -16,11 +18,7 @@ export function getOpenRouterApiKey(): string {
   );
 
   if (!key) {
-    throw new Error(
-      "OPENROUTER_API_KEY не задан. Локально добавьте его в .env.local. " +
-        "На Vercel: Settings → Environment Variables → имя OPENROUTER_API_KEY, " +
-        "окружения Production / Preview / Development, затем Redeploy.",
-    );
+    throw new AppError("AI_CONFIG_MISSING");
   }
 
   return key;

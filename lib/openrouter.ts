@@ -1,5 +1,6 @@
 import type { ParsedArticle } from "@/lib/parseArticle";
 import { getAppUrl, getOpenRouterApiKey } from "@/lib/env";
+import { AppError } from "@/lib/errors";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "openrouter/owl-alpha";
@@ -12,7 +13,7 @@ type ChatCompletionResponse = {
 
 function assertArticleHasText(article: ParsedArticle): void {
   if (!article.title && !article.content) {
-    throw new Error("Нет текста для обработки");
+    throw new AppError("ARTICLE_PARSE_FAILED");
   }
 }
 
@@ -35,33 +36,49 @@ export function buildArticlePrompt(article: ParsedArticle, extra?: string): stri
 }
 
 async function chatCompletion(systemPrompt: string, userPrompt: string): Promise<string> {
-  const response = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${getOpenRouterApiKey()}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": getAppUrl(),
-      "X-Title": "c7_referent",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-    signal: AbortSignal.timeout(120000),
-  });
+  let response: Response;
 
-  const data = (await response.json()) as ChatCompletionResponse;
+  try {
+    response = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${getOpenRouterApiKey()}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": getAppUrl(),
+        "X-Title": "c7_referent",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+      signal: AbortSignal.timeout(120000),
+    });
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new AppError("AI_TIMEOUT");
+    }
+    throw new AppError("AI_REQUEST_FAILED");
+  }
+
+  let data: ChatCompletionResponse;
+
+  try {
+    data = (await response.json()) as ChatCompletionResponse;
+  } catch {
+    throw new AppError("AI_REQUEST_FAILED");
+  }
 
   if (!response.ok) {
-    throw new Error(data.error?.message ?? `OpenRouter: HTTP ${response.status}`);
+    throw new AppError("AI_REQUEST_FAILED");
   }
 
   const text = data.choices?.[0]?.message?.content?.trim();
   if (!text) {
-    throw new Error("OpenRouter вернул пустой ответ");
+    throw new AppError("AI_EMPTY_RESPONSE");
   }
 
   return text;
