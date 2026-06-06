@@ -130,3 +130,16 @@ export async function translateArticle(article: ParsedArticle): Promise<string> 
     buildArticlePrompt(article),
   );
 }
+
+export async function generateImagePrompt(article: ParsedArticle): Promise<string> {
+  assertArticleHasText(article);
+
+  return chatCompletion(
+    "You are an expert at writing prompts for text-to-image AI models. " +
+      "Based only on the provided English article, write one detailed image generation prompt in English. " +
+      "Describe a single visual scene that captures the main theme: subjects, setting, mood, lighting, and art style. " +
+      "Do not include text or words in the image. Do not invent facts beyond the article. " +
+      "Output only the prompt — no labels, quotes, or explanations.",
+    buildArticlePrompt(article),
+  );
+}

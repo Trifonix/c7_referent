@@ -1,12 +1,16 @@
 "use client";
 
-import { Check, Copy, RotateCcw } from "lucide-react";
+import { Check, Copy, Download, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import { type ErrorCode, isErrorCode } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
-type Action = "summary" | "theses" | "telegram" | "translate";
+type Action = "summary" | "theses" | "telegram" | "translate" | "illustration";
+
+type AppResult =
+  | { type: "text"; content: string }
+  | { type: "image"; imageUrl: string; prompt: string };
 
 const PROCESS_STEPS: Record<Action, string[]> = {
   summary: [
@@ -28,6 +32,11 @@ const PROCESS_STEPS: Record<Action, string[]> = {
     "Загружаю статью…",
     "Извлекаю заголовок и текст…",
     "Перевожу статью на русский…",
+  ],
+  illustration: [
+    "Загружаю статью…",
+    "Создаю промпт для изображения…",
+    "Генерирую иллюстрацию…",
   ],
 };
 
@@ -76,6 +85,15 @@ const ACTIONS: {
     ring: "ring-amber-300/70",
     stagger: "stagger-4",
   },
+  {
+    id: "illustration",
+    label: "Иллюстрация",
+    description: "Изображение по теме",
+    title: "AI создаст промпт по статье и сгенерирует иллюстрацию через Hugging Face",
+    btn: "bg-rose-600 hover:bg-rose-500 hover:shadow-rose-500/40 focus-visible:ring-rose-400",
+    ring: "ring-rose-400/60",
+    stagger: "stagger-5",
+  },
 ];
 
 const secondaryBtnClass =
@@ -83,7 +101,7 @@ const secondaryBtnClass =
 
 export default function ArticleAnalyzer() {
   const [url, setUrl] = useState("");
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState<AppResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeAction, setActiveAction] = useState<Action | null>(null);
   const [error, setError] = useState<ErrorCode | null>(null);
@@ -134,12 +152,21 @@ export default function ArticleAnalyzer() {
 
   async function handleCopy() {
     if (!result) return;
+    const text = result.type === "text" ? result.content : result.prompt;
     try {
-      await navigator.clipboard.writeText(result);
+      await navigator.clipboard.writeText(text);
       setCopied(true);
     } catch {
       setError("UNKNOWN");
     }
+  }
+
+  function handleDownloadImage() {
+    if (!result || result.type !== "image") return;
+    const link = document.createElement("a");
+    link.href = result.imageUrl;
+    link.download = "illustration.png";
+    link.click();
   }
 
   async function handleAction(action: Action) {
@@ -171,14 +198,27 @@ export default function ArticleAnalyzer() {
         body: JSON.stringify({ url: trimmed, action }),
       });
 
-      const data = (await response.json()) as { text?: string; code?: string };
+      const data = (await response.json()) as {
+        text?: string;
+        image?: string;
+        prompt?: string;
+        code?: string;
+      };
 
       if (!response.ok) {
         setError(isErrorCode(data.code) ? data.code : "UNKNOWN");
         return;
       }
 
-      setResult(data.text ?? "");
+      if (data.image) {
+        setResult({
+          type: "image",
+          imageUrl: data.image,
+          prompt: data.prompt ?? "",
+        });
+      } else {
+        setResult({ type: "text", content: data.text ?? "" });
+      }
     } catch {
       setError("NETWORK_ERROR");
     } finally {
@@ -327,26 +367,41 @@ export default function ArticleAnalyzer() {
           </div>
 
           {!loading && result !== null && (
-            <button
-              type="button"
-              onClick={handleCopy}
-              className={cn(
-                secondaryBtnClass,
-                "w-full shrink-0 border-teal-500/40 bg-teal-950/60 text-teal-200 hover:bg-teal-900/60 focus-visible:ring-teal-400 focus-visible:ring-offset-slate-900 sm:w-auto",
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <button
+                type="button"
+                onClick={handleCopy}
+                className={cn(
+                  secondaryBtnClass,
+                  "w-full shrink-0 border-teal-500/40 bg-teal-950/60 text-teal-200 hover:bg-teal-900/60 focus-visible:ring-teal-400 focus-visible:ring-offset-slate-900 sm:w-auto",
+                )}
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4 shrink-0" aria-hidden />
+                    Скопировано
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4 shrink-0" aria-hidden />
+                    {result.type === "image" ? "Копировать промпт" : "Копировать"}
+                  </>
+                )}
+              </button>
+              {result.type === "image" && (
+                <button
+                  type="button"
+                  onClick={handleDownloadImage}
+                  className={cn(
+                    secondaryBtnClass,
+                    "w-full shrink-0 border-teal-500/40 bg-teal-950/60 text-teal-200 hover:bg-teal-900/60 focus-visible:ring-teal-400 focus-visible:ring-offset-slate-900 sm:w-auto",
+                  )}
+                >
+                  <Download className="h-4 w-4 shrink-0" aria-hidden />
+                  Скачать
+                </button>
               )}
-            >
-              {copied ? (
-                <>
-                  <Check className="h-4 w-4 shrink-0" aria-hidden />
-                  Скопировано
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4 shrink-0" aria-hidden />
-                  Копировать
-                </>
-              )}
-            </button>
+            </div>
           )}
         </div>
 
@@ -356,14 +411,33 @@ export default function ArticleAnalyzer() {
               Введите URL и нажмите одну из кнопок
             </p>
             <p className="mt-1 break-words text-xs text-slate-600">
-              Краткое содержание, тезисы, пост или перевод
+              Краткое содержание, тезисы, пост, перевод или иллюстрация
             </p>
           </div>
         )}
 
-        {!loading && result !== null && (
+        {!loading && result !== null && result.type === "text" && (
           <div className="animate-fade-in mt-2 max-h-[32rem] overflow-y-auto overflow-x-hidden rounded-xl border border-teal-500/20 bg-slate-950/60 p-4 text-sm leading-relaxed break-words whitespace-pre-wrap text-slate-200 shadow-inner sm:p-5">
-            {result}
+            {result.content}
+          </div>
+        )}
+
+        {!loading && result !== null && result.type === "image" && (
+          <div className="animate-fade-in mt-2 space-y-3">
+            <div className="overflow-hidden rounded-xl border border-teal-500/20 bg-slate-950/60 p-3 shadow-inner sm:p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={result.imageUrl}
+                alt="Сгенерированная иллюстрация по теме статьи"
+                className="mx-auto max-h-[32rem] w-full rounded-lg object-contain"
+              />
+            </div>
+            {result.prompt && (
+              <p className="break-words px-1 text-xs leading-relaxed text-slate-500">
+                <span className="font-medium text-slate-400">Промпт: </span>
+                {result.prompt}
+              </p>
+            )}
           </div>
         )}
       </section>

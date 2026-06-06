@@ -6,11 +6,18 @@ import {
   summarizeArticle,
   translateArticle,
 } from "@/lib/openrouter";
+import { generateArticleIllustration } from "@/lib/illustration";
 import { AppError, getHttpStatus } from "@/lib/errors";
 
-type Action = "summary" | "theses" | "telegram" | "translate";
+type Action = "summary" | "theses" | "telegram" | "translate" | "illustration";
 
-const AI_ACTIONS: Action[] = ["summary", "theses", "telegram", "translate"];
+const AI_ACTIONS: Action[] = [
+  "summary",
+  "theses",
+  "telegram",
+  "translate",
+  "illustration",
+];
 
 export const maxDuration = 300;
 
@@ -21,13 +28,15 @@ async function runAiAction(
 ) {
   switch (action) {
     case "summary":
-      return summarizeArticle(article);
+      return { text: await summarizeArticle(article) };
     case "theses":
-      return extractTheses(article);
+      return { text: await extractTheses(article) };
     case "telegram":
-      return generateTelegramPost(article, url);
+      return { text: await generateTelegramPost(article, url) };
     case "translate":
-      return translateArticle(article);
+      return { text: await translateArticle(article) };
+    case "illustration":
+      return { illustration: await generateArticleIllustration(article) };
   }
 }
 
@@ -67,8 +76,16 @@ export async function POST(request: Request) {
       return errorJson("ARTICLE_PARSE_FAILED");
     }
 
-    const text = await runAiAction(action, article, url);
-    return NextResponse.json({ text });
+    const result = await runAiAction(action, article, url);
+
+    if (action === "illustration") {
+      return NextResponse.json({
+        image: result.illustration!.image,
+        prompt: result.illustration!.prompt,
+      });
+    }
+
+    return NextResponse.json({ text: result.text! });
   } catch (err) {
     if (err instanceof AppError) {
       return errorJson(err.code);

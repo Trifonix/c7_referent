@@ -9,6 +9,10 @@ export type ErrorCode =
   | "AI_REQUEST_FAILED"
   | "AI_TIMEOUT"
   | "AI_EMPTY_RESPONSE"
+  | "IMAGE_CONFIG_MISSING"
+  | "IMAGE_GENERATION_FAILED"
+  | "IMAGE_MODEL_LOADING"
+  | "IMAGE_TIMEOUT"
   | "NETWORK_ERROR"
   | "UNKNOWN";
 
@@ -57,6 +61,26 @@ export const ERROR_MESSAGES: Record<ErrorCode, { title: string; description: str
     title: "Пустой ответ",
     description: "AI вернул пустой результат. Попробуйте повторить запрос.",
   },
+  IMAGE_CONFIG_MISSING: {
+    title: "Генерация изображений недоступна",
+    description:
+      "Сервис иллюстраций не настроен. Обратитесь к администратору или попробуйте позже.",
+  },
+  IMAGE_GENERATION_FAILED: {
+    title: "Не удалось создать иллюстрацию",
+    description:
+      "Ошибка при генерации изображения. Попробуйте ещё раз через минуту.",
+  },
+  IMAGE_MODEL_LOADING: {
+    title: "Модель загружается",
+    description:
+      "Сервис Hugging Face прогревает модель. Подождите 20–30 секунд и попробуйте снова.",
+  },
+  IMAGE_TIMEOUT: {
+    title: "Превышено время ожидания",
+    description:
+      "Генерация изображения заняла слишком много времени. Попробуйте ещё раз.",
+  },
   NETWORK_ERROR: {
     title: "Проблема с сетью",
     description: "Проверьте подключение к интернету и попробуйте снова.",
@@ -91,9 +115,13 @@ export function getHttpStatus(code: ErrorCode): number {
     case "ARTICLE_PARSE_FAILED":
       return 422;
     case "AI_CONFIG_MISSING":
+    case "IMAGE_CONFIG_MISSING":
       return 503;
     case "AI_TIMEOUT":
+    case "IMAGE_TIMEOUT":
       return 504;
+    case "IMAGE_MODEL_LOADING":
+      return 503;
     default:
       return 500;
   }

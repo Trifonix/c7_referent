@@ -24,6 +24,18 @@ export function getOpenRouterApiKey(): string {
   return key;
 }
 
+export function getHuggingFaceApiKey(): string {
+  const key = normalizeEnvValue(
+    process.env.HUGGINGFACE_API_KEY ?? process.env.HF_TOKEN,
+  );
+
+  if (!key) {
+    throw new AppError("IMAGE_CONFIG_MISSING");
+  }
+
+  return key;
+}
+
 export function getAppUrl(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
@@ -32,4 +44,11 @@ export function getAppUrl(): string {
     return `https://${process.env.VERCEL_URL}`;
   }
   return "http://localhost:3000";
+}
+
+export function getHuggingFaceModel(): string {
+  return (
+    normalizeEnvValue(process.env.HUGGINGFACE_MODEL) ??
+    "black-forest-labs/FLUX.1-schnell"
+  );
 }
